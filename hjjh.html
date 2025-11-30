@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pro Workout Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700&family=Inter:wght@300;400;600;700&display=swap');
+
+        :root {
+            --bg-dark: #0f172a;
+            --card-dark: #1e293b;
+            --primary: #3b82f6;
+            --accent: #22c55e;
+        }
+
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: var(--bg-dark);
+            color: #e2e8f0;
+            -webkit-tap-highlight-color: transparent;
+            padding-bottom: 80px; /* Space for timer */
+        }
+
+        .en-font {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .hide-scroll::-webkit-scrollbar { display: none; }
+        .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .card-gradient {
+            background: linear-gradient(145deg, #1e293b, #111827);
+        }
+
+        .active-tab {
+            background-color: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        /* Youtube Link Hover Effect */
+        .yt-link:hover {
+            color: #ef4444; /* Red for YT */
+        }
+
+        /* Custom Range Input for Reps (Optional visual flair) */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(10px);
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .btn-control {
+            active: scale-95 transition-transform;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col transition-all duration-300">
+
+    <!-- Navbar -->
+    <nav class="sticky top-0 z-40 bg-slate-900/95 backdrop-blur border-b border-slate-800 shadow-lg">
+        <div class="max-w-3xl mx-auto px-4 py-3 flex justify-between items-center">
+            <h1 id="app-title" class="text-xl font-bold text-blue-400">Tracker</h1>
+            <div class="flex gap-2">
+                <button onclick="resetDailyProgress()" class="bg-red-500/10 hover:bg-red-500/20 text-red-400 p-2 rounded-lg border border-red-500/30 transition">
+                    <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                </button>
+                <button onclick="toggleLanguage()" class="bg-slate-800 hover:bg-slate-700 text-xs font-bold py-2 px-3 rounded-lg border border-slate-700 transition flex items-center gap-2">
+                    <i data-lucide="globe" class="w-4 h-4"></i>
+                    <span id="lang-btn-text">English</span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-grow max-w-3xl mx-auto px-4 py-6 w-full">
+
+        <!-- Day Selector -->
+        <div class="flex gap-2 overflow-x-auto hide-scroll pb-2 mb-4" id="day-selector">
+            <!-- Injected via JS -->
+        </div>
+
+        <!-- Workout Header -->
+        <div class="mb-6 animate-fade-in px-1">
+            <h2 id="day-title" class="text-2xl font-bold text-white mb-1"></h2>
+            <p id="day-subtitle" class="text-blue-400 text-sm font-medium"></p>
+        </div>
+
+        <!-- Exercises List -->
+        <div id="exercise-list" class="space-y-5">
+            <!-- Injected via JS -->
+        </div>
+
+    </main>
+
+    <!-- Global Timer Footer -->
+    <div id="timer-footer" class="fixed bottom-0 left-0 w-full glass-panel transform translate-y-full transition-transform duration-300 z-50 shadow-[0_-5px_20px_rgba(0,0,0,0.5)]">
+        <div class="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="bg-slate-800 p-2 rounded-full border border-slate-700">
+                    <i data-lucide="timer" class="w-6 h-6 text-blue-400 animate-pulse"></i>
+                </div>
+                <div>
+                    <p class="text-xs text-slate-400 uppercase tracking-wider" id="timer-label">Rest Time</p>
+                    <p class="text-2xl font-mono font-bold text-white leading-none" id="timer-display">00:00</p>
+                </div>
+            </div>
+            <div class="flex gap-3">
+                <button onclick="addTime(10)" class="bg-slate-800 text-slate-300 px-3 py-2 rounded-lg font-bold border border-slate-700 hover:bg-slate-700 active:scale-95 transition">+10s</button>
+                <button onclick="stopTimer()" class="bg-red-500/20 text-red-400 px-4 py-2 rounded-lg font-bold border border-red-500/30 hover:bg-red-500/30 active:scale-95 transition" id="stop-btn">Stop</button>
+            </div>
+        </div>
+        <!-- Progress Bar -->
+        <div class="h-1 bg-slate-800 w-full">
+            <div id="timer-progress" class="h-full bg-blue-500 transition-all duration-1000 ease-linear" style="width: 100%"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- DATA ---
+        const data = {
+            ar: {
+                title: "المتتبع الرياضي",
+                langBtn: "English",
+                timerLabel: "وقت الراحة",
+                stopBtn: "إيقاف",
+                resetConfirm: "هل تريد تصفير عدادات اليوم؟",
+                labels: { sets: "الجولات", reps: "العدات", rest: "راحة", startRest: "بدء الراحة", done: "مكتمل", track: "تتبع" },
+                days: [
+                    { id: 1, name: "يوم 1", title: "Push A", sub: "صدر / أكتاف / ترايسبس" },
+                    { id: 2, name: "يوم 2", title: "Pull A", sub: "ظهر / بايسبس" },
+                    { id: 3, name: "يوم 3", title: "Legs A", sub: "أرجل / كور" },
+                    { id: 4, name: "يوم 4", title: "Push B", sub: "تركيز صدر" },
+                    { id: 5, name: "يوم 5", title: "Pull B", sub: "ظهر / دلتويد خلفي" },
+                    { id: 6, name: "يوم 6", title: "Legs B", sub: "أرجل / أكتاف جانبية" },
+                    { id: 7, name: "يوم 7", title: "راحة", sub: "مشي خفيف وتمطيط" }
+                ],
+                exercises: {
+                    1: [
+                        { name: "ضغط صدر بالدمبل على الأرض", search: "Dumbbell Floor Press form", sets: 4, reps: "12-18", rest: 90, note: "عصر أعلى الحركة" },
+                        { name: "تمرين الضغط", search: "Perfect Push Up form", sets: 4, reps: "Max", rest: 90, note: "للفشل -1" },
+                        { name: "ضغط كتف دمبل", search: "Seated Dumbbell Shoulder Press form", sets: 4, reps: "12-15", rest: 90, note: "إيقاع 3-0-2" },
+                        { name: "رفرفة جانبية", search: "Dumbbell Lateral Raise form", sets: 4, reps: "15-20", rest: 60, note: "توقف 2ث أعلى" },
+                        { name: "فلاي دمبل (مدى جزئي)", search: "Floor Dumbbell Flyes form", sets: 3, reps: "15-20", rest: 60, note: "نزول بطيء 4ث" },
+                        { name: "تمديد ترايسبس فوق الرأس", search: "Overhead Dumbbell Triceps Extension form", sets: 3, reps: "12-20", rest: 75, note: "ثبات 1ث بالتمطيط" },
+                        { name: "ضغط ضيق (ترايسبس)", search: "Close grip push up form", sets: 2, reps: "Failure", rest: 60, note: "حتى التعب" }
+                    ],
+                    2: [
+                        { name: "تجديف يد واحدة", search: "One arm dumbbell row form", sets: 4, reps: "15-20", rest: 75, note: "لكل يد" },
+                        { name: "تجديف غوريلا", search: "Gorilla Row form", sets: 3, reps: "12-18", rest: 75, note: "ظهر ثابت" },
+                        { name: "بول أوفر دمبل", search: "Dumbbell Pullover form", sets: 3, reps: "12-18", rest: 75, note: "توقف 1ث تمديد" },
+                        { name: "رفرفة خلفية", search: "Dumbbell Rear Delt Fly form", sets: 4, reps: "15-20", rest: 60, note: "توقف 2ث أعلى" },
+                        { name: "كيرل بايسبس بالتناوب", search: "Alternating Dumbbell Curl form", sets: 3, reps: "12-18", rest: 75, note: "نزول 3-4ث" },
+                        { name: "هامر كيرل", search: "Hammer Curl form", sets: 3, reps: "12-15", rest: 60, note: "-" },
+                        { name: "كيرل زوتمن", search: "Zottman Curl form", sets: 2, reps: "12-15", rest: 60, note: "-" }
+                    ],
+                    3: [
+                        { name: "جوبليت سكوات", search: "Goblet Squat form", sets: 4, reps: "15-20", rest: 90, note: "إيقاع 3-1-1" },
+                        { name: "سكوات بلغاري", search: "Bulgarian Split Squat form", sets: 4, reps: "12-18", rest: 90, note: "توقف 2ث بالأسفل" },
+                        { name: "رفعة ميتة رومانية", search: "Dumbbell RDL form", sets: 4, reps: "12-20", rest: 75, note: "توقف 2ث تمديد" },
+                        { name: "دفع حوض أرضي", search: "Dumbbell Floor Hip Thrust form", sets: 4, reps: "15-20", rest: 75, note: "توقف 2ث بالأعلى" },
+                        { name: "سمانة وقوفاً", search: "Standing Dumbbell Calf Raise form", sets: 5, reps: "15-25", rest: 60, note: "توقف 2ث أعلى وأسفل" },
+                        { name: "بلانك", search: "Plank form", sets: 3, reps: "45-60s", rest: 45, note: "ثبات" },
+                        { name: "الحشرة الميتة", search: "Dead Bug exercise form", sets: 3, reps: "10-12", rest: 45, note: "لكل جانب" }
+                    ],
+                    4: [
+                        { name: "ضغط دمبل متلاصق", search: "Dumbbell Squeeze Press form", sets: 4, reps: "12-20", rest: 90, note: "عصر مستمر" },
+                        { name: "ضغط أقدام مرتفعة", search: "Feet elevated push up form", sets: 4, reps: "8-15", rest: 90, note: "نزول 3ث" },
+                        { name: "فلاي مدى قصير", search: "Dumbbell Floor Fly form", sets: 3, reps: "15-20", rest: 60, note: "نزول 4ث" },
+                        { name: "ضغط بايك (أكتاف)", search: "Pike Push up form", sets: 3, reps: "8-12", rest: 75, note: "-" },
+                        { name: "رفرفة جانبية (دروب)", search: "Lateral Raise form", sets: 3, reps: "Mixed", rest: 90, note: "12 كامل+10 نصف+10 خلفي" },
+                        { name: "كيك باك ترايسبس", search: "Tricep Kickback form", sets: 3, reps: "15-20", rest: 60, note: "-" },
+                        { name: "ضغط ضيق", search: "Close grip push up", sets: 2, reps: "Fail", rest: 60, note: "حتى التعب" }
+                    ],
+                    5: [
+                        { name: "تجديف (مرفقين للخارج)", search: "Elbows out dumbbell row form", sets: 4, reps: "15-20", rest: 75, note: "-" },
+                        { name: "بول أوفر دمبل", search: "Dumbbell Pullover form", sets: 4, reps: "12-18", rest: 75, note: "-" },
+                        { name: "ملائكة الثلج العكسية", search: "Reverse Snow Angels exercise", sets: 3, reps: "12-15", rest: 60, note: "-" },
+                        { name: "رفرفة Y أرضية", search: "Prone Y Raise form", sets: 3, reps: "12-15", rest: 60, note: "-" },
+                        { name: "كيرل مركز", search: "Concentration Curl form", sets: 3, reps: "12-15", rest: 60, note: "-" },
+                        { name: "هامر كيرل (كروس)", search: "Cross body hammer curl form", sets: 3, reps: "12-15", rest: 60, note: "-" },
+                        { name: "سواعد (عكسي + عادي)", search: "Dumbbell Wrist Curl", sets: 2, reps: "20-25", rest: 45, note: "سوبر ست" }
+                    ],
+                    6: [
+                        { name: "لانجز (مشى/ثبات)", search: "Dumbbell Lunges form", sets: 4, reps: "12-16", rest: 90, note: "لكل ساق" },
+                        { name: "سكوات سومو", search: "Dumbbell Sumo Squat form", sets: 4, reps: "15-20", rest: 90, note: "-" },
+                        { name: "RDL ساق واحدة", search: "Single Leg RDL form", sets: 4, reps: "12-15", rest: 75, note: "لكل ساق" },
+                        { name: "جسر المؤخرة (ثبات)", search: "Glute Bridge Hold", sets: 3, reps: "20s", rest: 60, note: "إيقاف 3 ثواني" },
+                        { name: "سمانة (درج/حافة)", search: "Calf Raise form", sets: 5, reps: "15-25", rest: 60, note: "-" },
+                        { name: "رفرفة أمامية", search: "Dumbbell Front Raise form", sets: 3, reps: "12-15", rest: 60, note: "-" },
+                        { name: "سايد بلانك", search: "Side Plank form", sets: 3, reps: "30-45s", rest: 45, note: "لكل جانب" },
+                        { name: "رشن تويست", search: "Russian Twist form", sets: 3, reps: "20", rest: 45, note: "-" }
+                    ],
+                    7: [
+                        { name: "راحة نشطة", search: "Stretching routine", sets: 0, reps: "-", rest: 0, note: "مشي خفيف وتمطيط" }
+                    ]
+                }
+            },
+            en: {
+                title: "Workout Tracker",
+                langBtn: "عربي",
+                timerLabel: "Rest Timer",
+                stopBtn: "Stop",
+                resetConfirm: "Reset all progress for today?",
+                labels: { sets: "Sets", reps: "Reps", rest: "Rest", startRest: "Start Rest", done: "Done", track: "Track" },
+                days: [
+                    { id: 1, name: "Day 1", title: "Push A", sub: "Chest / Shoulders / Triceps" },
+                    { id: 2, name: "Day 2", title: "Pull A", sub: "Back / Biceps" },
+                    { id: 3, name: "Day 3", title: "Legs A", sub: "Legs / Core" },
+                    { id: 4, name: "Day 4", title: "Push B", sub: "Chest Focus" },
+                    { id: 5, name: "Day 5", title: "Pull B", sub: "Back / Rear Delt" },
+                    { id: 6, name: "Day 6", title: "Legs B", sub: "Legs / Side Delt" },
+                    { id: 7, name: "Day 7", title: "Rest", sub: "Light Walk & Stretch" }
+                ],
+                exercises: {
+                    1: [
+                        { name: "Dumbbell Floor Press", search: "Dumbbell Floor Press form", sets: 4, reps: "12-18", rest: 90, note: "Squeeze at top" },
+                        { name: "Push-ups", search: "Perfect Push Up form", sets: 4, reps: "Max", rest: 90, note: "Failure -1 rep" },
+                        { name: "DB Shoulder Press", search: "Seated Dumbbell Shoulder Press form", sets: 4, reps: "12-15", rest: 90, note: "3-0-2 tempo" },
+                        { name: "DB Lateral Raise", search: "Dumbbell Lateral Raise form", sets: 4, reps: "15-20", rest: 60, note: "2s pause at top" },
+                        { name: "Floor DB Flyes (Partial)", search: "Floor Dumbbell Flyes form", sets: 3, reps: "15-20", rest: 60, note: "Slow 4s negative" },
+                        { name: "Overhead DB Triceps Ext", search: "Overhead Dumbbell Triceps Extension form", sets: 3, reps: "12-20", rest: 75, note: "1s hold at stretch" },
+                        { name: "Close-grip Push-ups", search: "Close grip push up form", sets: 2, reps: "Failure", rest: 60, note: "To failure" }
+                    ],
+                    2: [
+                        { name: "One-arm DB Row", search: "One arm dumbbell row form", sets: 4, reps: "15-20", rest: 75, note: "Per arm" },
+                        { name: "Gorilla Row", search: "Gorilla Row form", sets: 3, reps: "12-18", rest: 75, note: "Keep back stable" },
+                        { name: "DB Pullover", search: "Dumbbell Pullover form", sets: 3, reps: "12-18", rest: 75, note: "1s pause stretch" },
+                        { name: "DB Rear Delt Fly", search: "Dumbbell Rear Delt Fly form", sets: 4, reps: "15-20", rest: 60, note: "2s pause top" },
+                        { name: "Alt DB Biceps Curl", search: "Alternating Dumbbell Curl form", sets: 3, reps: "12-18", rest: 75, note: "3-4s negative" },
+                        { name: "Hammer Curl", search: "Hammer Curl form", sets: 3, reps: "12-15", rest: 60, note: "-" },
+                        { name: "Zottman Curl", search: "Zottman Curl form", sets: 2, reps: "12-15", rest: 60, note: "-" }
+                    ],
+                    3: [
+                        { name: "Goblet Squat", search: "Goblet Squat form", sets: 4, reps: "15-20", rest: 90, note: "3-1-1 tempo" },
+                        { name: "Bulgarian Split Squat", search: "Bulgarian Split Squat form", sets: 4, reps: "12-18", rest: 90, note: "2s pause bottom" },
+                        { name: "DB Romanian Deadlift", search: "Dumbbell RDL form", sets: 4, reps: "12-20", rest: 75, note: "2s pause stretch" },
+                        { name: "Floor DB Hip Thrust", search: "Dumbbell Floor Hip Thrust form", sets: 4, reps: "15-20", rest: 75, note: "2s pause top" },
+                        { name: "Standing Calf Raise", search: "Standing Dumbbell Calf Raise form", sets: 5, reps: "15-25", rest: 60, note: "2s pause top/bottom" },
+                        { name: "Plank", search: "Plank form", sets: 3, reps: "45-60s", rest: 45, note: "Hold" },
+                        { name: "Dead Bug", search: "Dead Bug exercise form", sets: 3, reps: "10-12", rest: 45, note: "Per side" }
+                    ],
+                    4: [
+                        { name: "DB Squeeze Press", search: "Dumbbell Squeeze Press form", sets: 4, reps: "12-20", rest: 90, note: "Constant squeeze" },
+                        { name: "Feet-elevated Push-up", search: "Feet elevated push up form", sets: 4, reps: "8-15", rest: 90, note: "3s negative" },
+                        { name: "Short Range Fly (Floor)", search: "Dumbbell Floor Fly form", sets: 3, reps: "15-20", rest: 60, note: "4s negative" },
+                        { name: "Pike Push-up", search: "Pike Push up form", sets: 3, reps: "8-12", rest: 75, note: "-" },
+                        { name: "Mech. Drop Set Lateral", search: "Lateral Raise form", sets: 3, reps: "Mixed", rest: 90, note: "12 Full+10 Part+10 Rear" },
+                        { name: "DB Triceps Kickback", search: "Tricep Kickback form", sets: 3, reps: "15-20", rest: 60, note: "-" },
+                        { name: "Close-grip Push-up", search: "Close grip push up", sets: 2, reps: "Fail", rest: 60, note: "To failure" }
+                    ],
+                    5: [
+                        { name: "Elbows-out DB Row", search: "Elbows out dumbbell row form", sets: 4, reps: "15-20", rest: 75, note: "-" },
+                        { name: "DB Pullover", search: "Dumbbell Pullover form", sets: 4, reps: "12-18", rest: 75, note: "-" },
+                        { name: "Reverse Snow Angels", search: "Reverse Snow Angels exercise", sets: 3, reps: "12-15", rest: 60, note: "-" },
+                        { name: "Prone Y-Raise", search: "Prone Y Raise form", sets: 3, reps: "12-15", rest: 60, note: "-" },
+                        { name: "Concentration Curl", search: "Concentration Curl form", sets: 3, reps: "12-15", rest: 60, note: "-" },
+                        { name: "Cross-body Hammer Curl", search: "Cross body hammer curl form", sets: 3, reps: "12-15", rest: 60, note: "-" },
+                        { name: "Wrist Curls (Bi-set)", search: "Dumbbell Wrist Curl", sets: 2, reps: "20-25", rest: 45, note: "Regular + Reverse" }
+                    ],
+                    6: [
+                        { name: "Lunges", search: "Dumbbell Lunges form", sets: 4, reps: "12-16", rest: 90, note: "Per leg" },
+                        { name: "DB Sumo Squat", search: "Dumbbell Sumo Squat form", sets: 4, reps: "15-20", rest: 90, note: "-" },
+                        { name: "Single-Leg RDL", search: "Single Leg RDL form", sets: 4, reps: "12-15", rest: 75, note: "Per leg" },
+                        { name: "Glute Bridge Hold", search: "Glute Bridge Hold", sets: 3, reps: "20s", rest: 60, note: "3s pause" },
+                        { name: "Step Calf Raise", search: "Calf Raise form", sets: 5, reps: "15-25", rest: 60, note: "-" },
+                        { name: "DB Front Raise", search: "Dumbbell Front Raise form", sets: 3, reps: "12-15", rest: 60, note: "-" },
+                        { name: "Side Plank", search: "Side Plank form", sets: 3, reps: "30-45s", rest: 45, note: "Per side" },
+                        { name: "DB Russian Twist", search: "Russian Twist form", sets: 3, reps: "20", rest: 45, note: "-" }
+                    ],
+                    7: [
+                        { name: "Active Rest", search: "Full body stretching routine", sets: 0, reps: "-", rest: 0, note: "Recovery" }
+                    ]
+                }
+            }
+        };
+
+        // --- STATE & PERSISTENCE ---
+        let currentLang = 'ar';
+        let activeDay = 1;
+        let trackerData = JSON.parse(localStorage.getItem('workout_tracker')) || {};
+        
+        let timerState = {
+            interval: null,
+            totalTime: 0,
+            remaining: 0,
+            isRunning: false
+        };
+
+        // --- DOM ELEMENTS ---
+        const els = {
+            html: document.documentElement,
+            appTitle: document.getElementById('app-title'),
+            langBtnText: document.getElementById('lang-btn-text'),
+            daySelector: document.getElementById('day-selector'),
+            dayTitle: document.getElementById('day-title'),
+            daySubtitle: document.getElementById('day-subtitle'),
+            list: document.getElementById('exercise-list'),
+            timerFooter: document.getElementById('timer-footer'),
+            timerDisplay: document.getElementById('timer-display'),
+            timerProgress: document.getElementById('timer-progress'),
+            timerLabel: document.getElementById('timer-label'),
+            stopBtn: document.getElementById('stop-btn')
+        };
+
+        // --- FUNCTIONS ---
+
+        function toggleLanguage() {
+            currentLang = currentLang === 'ar' ? 'en' : 'ar';
+            els.html.dir = currentLang === 'ar' ? 'rtl' : 'ltr';
+            els.html.lang = currentLang;
+            
+            // Toggle Font
+            if(currentLang === 'en') {
+                document.body.classList.add('en-font');
+            } else {
+                document.body.classList.remove('en-font');
+            }
+
+            render();
+        }
+
+        function setDay(dayId) {
+            activeDay = dayId;
+            render();
+        }
+
+        function getExerciseState(day, idx) {
+            const key = `d${day}_e${idx}`;
+            if (!trackerData[key]) {
+                trackerData[key] = { sets: 0, reps: 0 };
+            }
+            return trackerData[key];
+        }
+
+        function updateState(day, idx, type, val) {
+            const key = `d${day}_e${idx}`;
+            if (!trackerData[key]) trackerData[key] = { sets: 0, reps: 0 };
+
+            if (type === 'sets') {
+                trackerData[key].sets += val;
+                if (trackerData[key].sets < 0) trackerData[key].sets = 0;
+            } else if (type === 'reps') {
+                trackerData[key].reps += val;
+                if (trackerData[key].reps < 0) trackerData[key].reps = 0;
+            } else if (type === 'reset') {
+                 trackerData[key].sets = 0;
+            }
+
+            localStorage.setItem('workout_tracker', JSON.stringify(trackerData));
+            
+            // Update UI specific elements to avoid full re-render
+            const setsEl = document.getElementById(`sets-display-${day}-${idx}`);
+            const repsEl = document.getElementById(`reps-display-${day}-${idx}`);
+            
+            if(setsEl) setsEl.textContent = trackerData[key].sets;
+            if(repsEl) repsEl.textContent = trackerData[key].reps;
+            
+            // Visual feedback for completion (Optional logic: if sets >= target sets)
+            // But we keep it simple for now
+        }
+
+        function resetDailyProgress() {
+            if(confirm(data[currentLang].resetConfirm)) {
+                // Clear keys starting with current day
+                Object.keys(trackerData).forEach(key => {
+                    if(key.startsWith(`d${activeDay}_`)) {
+                        trackerData[key] = { sets: 0, reps: 0 };
+                    }
+                });
+                localStorage.setItem('workout_tracker', JSON.stringify(trackerData));
+                render();
+            }
+        }
+
+        // --- TIMER LOGIC ---
+        function startTimer(seconds) {
+            stopTimer(); // Clear existing
+            
+            timerState.totalTime = seconds;
+            timerState.remaining = seconds;
+            timerState.isRunning = true;
+
+            // Show footer
+            els.timerFooter.classList.remove('translate-y-full');
+            
+            updateTimerUI();
+
+            timerState.interval = setInterval(() => {
+                timerState.remaining--;
+                updateTimerUI();
+
+                if (timerState.remaining <= 0) {
+                    stopTimer();
+                    // Play sound or vibrate
+                    if ("vibrate" in navigator) navigator.vibrate([200, 100, 200]);
+                    els.timerFooter.classList.add('translate-y-full'); // Auto hide on finish
+                }
+            }, 1000);
+        }
+
+        function addTime(seconds) {
+            timerState.remaining += seconds;
+            timerState.totalTime += seconds; // Adjust total to keep progress bar consistent or just add?
+            // Let's just add to remaining. The progress bar might jump, which is fine.
+            updateTimerUI();
+        }
+
+        function stopTimer() {
+            if (timerState.interval) clearInterval(timerState.interval);
+            timerState.isRunning = false;
+            // We only hide footer if user clicks stop explicitly or time runs out
+            if(timerState.remaining > 0) {
+                 els.timerFooter.classList.add('translate-y-full');
+            }
+        }
+
+        function updateTimerUI() {
+            const m = Math.floor(timerState.remaining / 60).toString().padStart(2, '0');
+            const s = (timerState.remaining % 60).toString().padStart(2, '0');
+            els.timerDisplay.textContent = `${m}:${s}`;
+            
+            const pct = (timerState.remaining / timerState.totalTime) * 100;
+            els.timerProgress.style.width = `${pct}%`;
+        }
+
+        // --- RENDER ---
+        function render() {
+            const txt = data[currentLang];
+            const currentDayData = txt.days.find(d => d.id === activeDay);
+            const exercises = txt.exercises[activeDay];
+
+            // Static Text Updates
+            els.appTitle.textContent = txt.title;
+            els.langBtnText.textContent = txt.langBtn;
+            els.timerLabel.textContent = txt.timerLabel;
+            els.stopBtn.textContent = txt.stopBtn;
+
+            // Day Selector
+            els.daySelector.innerHTML = txt.days.map(day => `
+                <button onclick="setDay(${day.id})" 
+                    class="flex-shrink-0 px-4 py-3 rounded-xl border font-bold text-sm transition-all duration-200 whitespace-nowrap
+                    ${day.id === activeDay 
+                        ? 'active-tab border-blue-500 shadow-lg shadow-blue-900/20' 
+                        : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-700'}">
+                    ${day.name}
+                </button>
+            `).join('');
+
+            // Header
+            els.dayTitle.textContent = currentDayData.title;
+            els.daySubtitle.textContent = currentDayData.sub;
+
+            // Exercises
+            if (activeDay === 7) {
+                els.list.innerHTML = `
+                    <div class="flex flex-col items-center justify-center py-20 text-slate-500">
+                        <i data-lucide="coffee" class="w-20 h-20 mb-6 opacity-30"></i>
+                        <h3 class="text-2xl font-bold text-slate-300 mb-2">${exercises[0].name}</h3>
+                        <p class="text-lg">${exercises[0].note}</p>
+                    </div>
+                `;
+            } else {
+                els.list.innerHTML = exercises.map((ex, idx) => {
+                    const state = getExerciseState(activeDay, idx);
+                    // YouTube Search URL
+                    const ytUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(ex.search)}`;
+                    
+                    // Initial Reps setup (if 0, maybe set to default range start? nah keep 0)
+                    
+                    return `
+                    <div class="card-gradient rounded-2xl p-4 border border-slate-700/50 relative overflow-hidden group shadow-lg">
+                        <!-- Header -->
+                        <div class="flex justify-between items-start mb-4">
+                            <a href="${ytUrl}" target="_blank" class="flex-grow group cursor-pointer">
+                                <h3 class="text-lg font-bold text-slate-100 leading-tight mb-1 flex items-center gap-2 yt-link transition-colors">
+                                    ${ex.name}
+                                    <i data-lucide="youtube" class="w-5 h-5 text-red-500 opacity-80"></i>
+                                </h3>
+                                <p class="text-xs text-blue-400 font-medium uppercase tracking-wider">${txt.labels.rest}: ${ex.rest}s | ${txt.labels.reps}: ${ex.reps}</p>
+                            </a>
+                            <div class="text-xs font-bold text-slate-500 px-2 py-1 rounded bg-slate-900/50 border border-slate-800">
+                                ${ex.sets} Sets
+                            </div>
+                        </div>
+
+                        <!-- Tracker Controls -->
+                        <div class="bg-slate-900/40 rounded-xl p-3 border border-white/5 mb-3">
+                            <!-- Row 1: Sets -->
+                            <div class="flex justify-between items-center mb-3 pb-3 border-b border-white/5">
+                                <span class="text-sm font-bold text-slate-300 flex items-center gap-2">
+                                    <i data-lucide="check-circle-2" class="w-4 h-4 text-green-500"></i>
+                                    ${txt.labels.sets}
+                                </span>
+                                <div class="flex items-center gap-3">
+                                    <button onclick="updateState(${activeDay}, ${idx}, 'sets', -1)" class="w-8 h-8 rounded-lg bg-slate-800 border border-slate-600 flex items-center justify-center text-slate-300 hover:bg-slate-700 active:scale-95 transition">
+                                        <i data-lucide="minus" class="w-4 h-4"></i>
+                                    </button>
+                                    <span id="sets-display-${activeDay}-${idx}" class="font-mono text-xl font-bold text-white w-8 text-center">${state.sets}</span>
+                                    <button onclick="updateState(${activeDay}, ${idx}, 'sets', 1)" class="w-8 h-8 rounded-lg bg-blue-600 border border-blue-500 flex items-center justify-center text-white hover:bg-blue-500 active:scale-95 transition shadow-lg shadow-blue-900/20">
+                                        <i data-lucide="plus" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <!-- Row 2: Reps -->
+                            <div class="flex justify-between items-center">
+                                <span class="text-sm font-bold text-slate-300 flex items-center gap-2">
+                                    <i data-lucide="hash" class="w-4 h-4 text-orange-400"></i>
+                                    ${txt.labels.reps}
+                                </span>
+                                <div class="flex items-center gap-3">
+                                    <button onclick="updateState(${activeDay}, ${idx}, 'reps', -1)" class="w-8 h-8 rounded-lg bg-slate-800 border border-slate-600 flex items-center justify-center text-slate-300 hover:bg-slate-700 active:scale-95 transition">
+                                        <i data-lucide="minus" class="w-4 h-4"></i>
+                                    </button>
+                                    <span id="reps-display-${activeDay}-${idx}" class="font-mono text-xl font-bold text-white w-8 text-center">${state.reps}</span>
+                                    <button onclick="updateState(${activeDay}, ${idx}, 'reps', 1)" class="w-8 h-8 rounded-lg bg-slate-700 border border-slate-600 flex items-center justify-center text-slate-200 hover:bg-slate-600 active:scale-95 transition">
+                                        <i data-lucide="plus" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Actions Footer -->
+                        <div class="flex gap-2">
+                            <button onclick="startTimer(${ex.rest})" class="flex-1 bg-slate-800 hover:bg-slate-700 text-blue-400 text-sm font-bold py-2 rounded-lg border border-slate-700 transition flex justify-center items-center gap-2 active:scale-95">
+                                <i data-lucide="timer" class="w-4 h-4"></i>
+                                ${txt.labels.startRest} (${ex.rest}s)
+                            </button>
+                             <button onclick="updateState(${activeDay}, ${idx}, 'reset', 0)" class="px-3 bg-slate-800 hover:bg-red-900/30 text-slate-400 hover:text-red-400 text-sm font-bold py-2 rounded-lg border border-slate-700 transition flex justify-center items-center active:scale-95">
+                                <i data-lucide="rotate-cw" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+                    `;
+                }).join('');
+            }
+
+            // Re-initialize icons
+            lucide.createIcons();
+        }
+
+        // Init
+        render();
+
+    </script>
+</body>
+</html>
